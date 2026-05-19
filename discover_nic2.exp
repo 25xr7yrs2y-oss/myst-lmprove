@@ -1,0 +1,9 @@
+#!/usr/bin/expect -f
+set timeout 15
+spawn ssh -o StrictHostKeyChecking=no xiaog0055@35.200.7.2 "powershell -NoProfile -NonInteractive -Command \"Get-NetIPConfiguration | Format-Table InterfaceAlias, IPv4Address; Get-WmiObject -Namespace 'root\\cimv2\\TerminalServices' -Class Win32_TSNetworkAdapterSetting | Select-Object TerminalName, NetworkAdapterName, NetworkAdapterLanaID\""
+expect {
+    "*assword:*" {
+        send "&8ayc_/QT^y_XTL\r"
+        expect eof
+    }
+}

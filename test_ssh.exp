@@ -1,0 +1,16 @@
+#!/usr/bin/expect -f
+set timeout 10
+spawn ssh -v -o StrictHostKeyChecking=no xiaog0055@35.200.7.2
+expect {
+    "*assword:*" {
+        send "&8ayc_/QT^y_XTL\r"
+        expect {
+            "C:\\*>" { send "whoami\r"; expect "C:\\*>"; send "exit\r"; exit 0 }
+            "PS C:\\*>" { send "whoami\r"; expect "PS C:\\*>"; send "exit\r"; exit 0 }
+            "*Permission denied*" { exit 1 }
+            timeout { exit 2 }
+        }
+    }
+    "*Permission denied*" { exit 1 }
+    timeout { exit 2 }
+}
