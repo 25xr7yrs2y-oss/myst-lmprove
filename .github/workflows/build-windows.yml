@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           cd node
-          go build -o myst.exe ./cmd/node
+          go build -o myst.exe ./cmd/mysterium_node
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
