@@ -1,9 +1,13 @@
---- a/net/wfp/wfp_windows.go
-+++ b/net/wfp/wfp_windows.go
-@@ -10,6 +10,7 @@
- 
- func EnableKillswitch() error {
-+    // PATCh: Disable WFP killswitch for custom build
-+    return nil
-     // original code below
- }
+diff --git a/core/node/options.go b/core/node/options.go
+index ca65147..994a1be 100644
+--- a/core/node/options.go
++++ b/core/node/options.go
+@@ -197,7 +197,7 @@ func GetOptions() *Options {
+ 			BinaryPath: config.GetString(config.FlagOpenvpnBinary),
+ 		}},
+ 		Firewall: OptionsFirewall{
+-			BlockAlways: config.GetBool(config.FlagFirewallKillSwitch),
++			BlockAlways: false, // PATCh: Disable WFP killswitch for custom build
+ 		},
+ 		Consumer:        config.GetBool(config.FlagConsumer),
+ 		PilvytisAddress: config.GetString(config.FlagPilvytisAddress),
