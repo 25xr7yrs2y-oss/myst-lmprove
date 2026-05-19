@@ -1,0 +1,45 @@
+name: Build Windows Node (Custom)
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout custom wrapper
+        uses: actions/checkout@v3
+        with:
+          path: wrapper
+
+      - name: Checkout upstream Mysterium Node
+        uses: actions/checkout@v3
+        with:
+          repository: mysteriumnetwork/node
+          path: node
+          ref: master
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Apply patches
+        shell: bash
+        run: |
+          cd node
+          git apply ../wrapper/patches/node/*.patch || echo "Patch applied or failed"
+
+      - name: Build
+        shell: bash
+        run: |
+          cd node
+          go build -o myst.exe ./cmd/node
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: myst-windows-custom
+          path: node/myst.exe

@@ -1,0 +1,9 @@
+--- a/net/wfp/wfp_windows.go
++++ b/net/wfp/wfp_windows.go
+@@ -10,6 +10,7 @@
+ 
+ func EnableKillswitch() error {
++    // PATCh: Disable WFP killswitch for custom build
++    return nil
+     // original code below
+ }
