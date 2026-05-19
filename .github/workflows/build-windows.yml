@@ -10,7 +10,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout custom wrapper
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: wrapper
 
@@ -39,7 +39,7 @@ jobs:
           go build -o myst.exe ./cmd/node
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: myst-windows-custom
           path: node/myst.exe
