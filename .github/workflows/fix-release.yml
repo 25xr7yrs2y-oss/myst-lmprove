@@ -1,6 +1,9 @@
 name: Fix Release
 on: workflow_dispatch
 
+permissions:
+  contents: write
+
 jobs:
   fix:
     runs-on: ubuntu-latest
