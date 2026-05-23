@@ -18,37 +18,18 @@
 package sleep
 
 import (
-	winlog "github.com/mysteriumnetwork/gowinlog"
 	"github.com/rs/zerolog/log"
 )
 
 // Start starts event log notifier
 func (n *Notifier) Start() {
-	log.Debug().Msg("Register for sleep log events")
-	watcher, err := winlog.NewWinLogWatcher()
-	if err != nil {
-		log.Error().Msgf("Couldn't create log watcher: %v\n", err)
-		return
-	}
-
-	watcher.SubscribeFromNow("System", "*[System[Provider[@Name='Microsoft-Windows-Power-Troubleshooter'] and EventID=1]]")
-	for {
-		select {
-		case <-watcher.Event():
-			n.eventBus.Publish(AppTopicSleepNotification, EventWakeup)
-		case err := <-watcher.Error():
-			log.Error().Msgf("Log watcher error: %v\n", err)
-		case <-n.stop:
-			break
-		}
-	}
-	watcher.Shutdown()
+	log.Debug().Msg("Register for noop sleep events")
 }
 
 // Stop stops event log notifier
 func (n *Notifier) Stop() {
 	n.stopOnce.Do(func() {
-		log.Debug().Msg("Unregister sleep log events watcher")
+		log.Debug().Msg("Unregister noop sleep events")
 		close(n.stop)
 	})
 }

@@ -30,6 +30,8 @@ jobs:
         shell: pwsh
         working-directory: custom-node
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           $env:GOOS = "windows"
           $env:GOARCH = "amd64"
           $env:CGO_ENABLED = "0"
@@ -46,7 +48,16 @@ jobs:
       - name: Replace packaged node binaries
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           $nodeBin = "node_modules/@mysteriumnetwork/node/bin/win/x64"
+          if (!(Test-Path custom-node/build/myst/myst.exe)) {
+            Get-ChildItem custom-node/build -Recurse
+            throw "Customized myst.exe was not produced"
+          }
+          if (!(Test-Path custom-node/build/myst_supervisor/myst_supervisor.exe)) {
+            Get-ChildItem custom-node/build -Recurse
+            throw "Customized myst_supervisor.exe was not produced"
+          }
           New-Item -ItemType Directory -Force -Path $nodeBin
           Copy-Item custom-node/build/myst/myst.exe "$nodeBin/myst.exe" -Force
           Copy-Item custom-node/build/myst_supervisor/myst_supervisor.exe "$nodeBin/myst_supervisor.exe" -Force
