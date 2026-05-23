@@ -1,0 +1,68 @@
+name: Windows customized client
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build-windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache-dependency-path: custom-node/go.sum
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "16"
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Build customized Mysterium node
+        shell: pwsh
+        working-directory: custom-node
+        run: |
+          $env:GOOS = "windows"
+          $env:GOARCH = "amd64"
+          $env:CGO_ENABLED = "0"
+          New-Item -ItemType Directory -Force -Path build/myst, build/myst_supervisor
+          go build -ldflags="-w -s" -o build/myst/myst.exe ./cmd/mysterium_node
+          go build -ldflags="-w -s" -o build/myst_supervisor/myst_supervisor.exe ./cmd/supervisor
+
+      - name: Install desktop dependencies
+        shell: pwsh
+        run: |
+          corepack enable
+          yarn install --frozen-lockfile
+
+      - name: Replace packaged node binaries
+        shell: pwsh
+        run: |
+          $nodeBin = "node_modules/@mysteriumnetwork/node/bin/win/x64"
+          New-Item -ItemType Directory -Force -Path $nodeBin
+          Copy-Item custom-node/build/myst/myst.exe "$nodeBin/myst.exe" -Force
+          Copy-Item custom-node/build/myst_supervisor/myst_supervisor.exe "$nodeBin/myst_supervisor.exe" -Force
+
+      - name: Build Windows installer
+        shell: pwsh
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: yarn bundle-dev --win nsis
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: myst-lmprove-windows-installer
+          path: |
+            dist/*.exe
+            dist/*.blockmap
+            dist/latest*.yml
+          if-no-files-found: error

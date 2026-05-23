@@ -1,0 +1,72 @@
+##############
+# Gas config #
+##############
+gas:
+  update_interval: 30s # Update interval specifies how often we update gas prices
+  expiration: 1m # Expiration specifies the amount of time for which inserted gas price is valid for
+  update_chains: # Specify the chains will be updated with gas prices"
+    - 5
+    - 80001
+  eth_static_gas_price: 0.001 # Static gas price (in gwei ex: 12.5) used in eth payments when no dynamic gas pricer is present
+  matic_static_gas_price: 0.001 # Static gas price (in gwei ex: 12.5) used in matic payments when no dynamic gas pricer is present
+
+  gas_station_override_chains_eth: # Overrides static matic gas pricer with built in external dynamic gas pricer for certain chains.
+  gas_station_override_chains_matic: # Overrides staitc gas pricer with built in external dynamic gas pricer for certain chains.
+    
+###########
+# Storage #
+###########
+storage:
+  redis:
+    addresses: 
+      - "redis:6379" # Redis address
+    password: "" # Redis password
+    prefix: "transactor"
+    pool_size: 100
+    pool_timeout: 5s
+  db:
+    psql_dsn: "postgres://transactor:transactor@transactordatabase:5432/transactor?sslmode=disable" # PostgreSQL DSN
+    max_idle_conns: 3
+    max_open_conns: 4
+    default_timeout: 15s
+
+###########
+# Runtime #
+###########
+runtime:
+  gecko_url: http://http-mock:1080/gecko # the gecko url
+  log_level: "debug"
+
+##############
+# Blockchain #
+##############
+blockchain:
+  default_chain_id: 80001 # The chain id to use by default
+  chains:
+    5:
+      rpc: "http://ganache:8545" # Rpc endpoints for the chain
+      fallback_hermeses: # Fallback list of hermes addresses
+        - "0xd68defb97d0765741f8ecf179df2f9564e1466a3"
+        - "0xfd63dc49c7163d82d6f0a4c23ff13216d702ce50"
+      registry_addresses: # A list of registry smart contract addresses
+        - "0x427c2bad22335710aec5e477f3e3adcd313a9bcb"
+      myst_sc_address: "0xaa9c4e723609cb913430143fbc86d3cbe7adca21"
+    80001:
+      rpc: "ws://ganache2:8545"
+      fallback_hermeses:
+        - "0xd68defb97d0765741f8ecf179df2f9564e1466a3"
+        - "0xfd63dc49c7163d82d6f0a4c23ff13216d702ce50"
+      registry_addresses:
+        - "0x427c2bad22335710aec5e477f3e3adcd313a9bcb"
+      myst_sc_address: "0xaa9c4e723609cb913430143fbc86d3cbe7adca21"
+
+########
+# Fees #
+########
+fees:
+  update_interval: 2s # Update interval specifies how often we update fees
+  expiration: 10s # Expiration specifies the amount of time for which inserted fee is valid for
+  update_chains: # Specify the chains will be updated with fee prices
+   - 5
+   - 80001
+  multiplier: 0.1 # Fees multiplier

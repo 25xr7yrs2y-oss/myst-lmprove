@@ -1,0 +1,582 @@
+version: '3.0'
+services:
+  echo:
+    image: mysteriumnetwork/assymmetric-udp-echo:latest
+    expose:
+      - 4589
+
+  morqa:
+    image: mysteriumnetwork/quality-oracle:2.23.0
+    command: >
+      --bind-addr=:8085
+      --prometheus=http://prometheus:9090
+    depends_on:
+      - prometheus
+    expose:
+      - 8085
+      - 8080
+
+  prometheus:
+    image: prom/prometheus:v2.10.0
+    volumes:
+      - ./e2e/prometheus:/prometheus
+    command:
+      - '--config.file=/prometheus/config.yml'
+      - '--storage.tsdb.path=data/'
+    expose:
+      - 9090
+
+  ipify:
+    image: mysteriumnetwork/ipify:1.0.1
+    expose:
+      - 3000
+
+  broker-real:
+    image: nats:1.0.4
+    expose:
+      - 4222
+
+  broker:
+    image: mysteriumnetwork/nats-proxy:1.0.1
+    depends_on:
+      - broker-real
+    command:
+      - '-target=broker-real:4222'
+    expose:
+      - 4222
+
+  db:
+    image: postgres:13-alpine
+    container_name: discovery_db
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_USER=discovery
+      - POSTGRES_DB=discovery
+      - POSTGRES_PASSWORD=discovery
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  discovery-service:
+    image: mysteriumnetwork/discovery:2.27.0
+    expose:
+      - 8081
+    environment:
+      - PORT=8081
+      - DB_DSN=postgresql://discovery:discovery@db:5432/discovery
+      - QUALITY_ORACLE_URL=http://morqa:8085
+      - BROKER_URL=broker-real:4222
+      - UNIVERSE_JWT_SECRET=suchsecret
+      - REDIS_ADDRESS=redis:6379
+      - BADGER_ADDRESS=http://badger:1234
+      - QUALITY_CACHE_TTL=20m
+      - LOCATION_ADDRESS="badurl"
+    depends_on:
+      - db
+      - redis
+      - http-mock
+
+  discovery:
+    image: nginx:latest
+    expose:
+      - 8080
+    volumes:
+      - ./e2e/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - discovery-service
+      - discovery-pricer
+
+  discovery-pricer:
+    image: mysteriumnetwork/discovery-pricer:2.27.0
+    expose:
+      - 8091
+    environment:
+      - PORT=8091
+      - DB_DSN=postgresql://discovery:discovery@db:5432/discovery
+      - QUALITY_ORACLE_URL=http://morqa:8085
+      - BROKER_URL=broker-real:4222
+      - UNIVERSE_JWT_SECRET=suchsecret
+      - REDIS_ADDRESS=redis:6379
+      - BADGER_ADDRESS=http://badger:1234
+      - QUALITY_CACHE_TTL=20m
+      - LOCATION_ADDRESS="badurl"
+      - SENTINEL_URL="https://sentinel.mysterium.network"
+    depends_on:
+      - db
+      - redis
+      - http-mock
+
+  #private blockchain
+  ganache:
+    image: trufflesuite/ganache:v7.3.2
+    expose:
+      - 8545
+    command: >
+      --chain.chainId 5 --chain.networkId 5 --wallet.mnemonic "amused glory pen avocado toilet dragon entry kitchen cliff retreat canyon danger"
+
+  #private blockchain
+  ganache2:
+    image: trufflesuite/ganache:v7.3.2
+    expose:
+      - 8545
+    command: >
+      --chain.chainId 80001 --chain.networkId 80001 --wallet.mnemonic "amused glory pen avocado toilet dragon entry kitchen cliff retreat canyon danger"
+
+  trust:
+    image: mysteriumnetwork/trust-oracle:latest
+    command: >
+      -swaggerHost=trust
+      -fallbackTrustedIDs=0xc4cb9a91b8498776f6f8a0d5a2a23beec9b3cef3
+
+  http-mock:
+    image: mockserver/mockserver:mockserver-5.15.0
+    ports:
+      - 9999:1080
+
+  transactordatabase:
+    image: postgres:13-alpine
+    expose:
+      - 5432
+    environment:
+      - POSTGRES_USER=transactor
+      - POSTGRES_DB=transactor
+      - POSTGRES_PASSWORD=transactor
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  transactor-sidecar:
+    image: mysteriumnetwork/transactor-sidecar:3.0.10
+    depends_on:
+      - transactordatabase
+      - redis
+      - http-mock
+    command: >
+      /usr/bin/sidecar
+      -configPaths=/transactor/sidecar_config.yaml
+    volumes:
+      - ./e2e/transactor:/transactor
+
+  transactor:
+    image: mysteriumnetwork/transactor:3.0.10
+    environment:
+      PORT: 8888
+    expose:
+      - 8888
+    depends_on:
+      - ganache
+      - ganache2
+      - transactordatabase
+      - redis
+      - http-mock
+      - transactor-sidecar
+    command: >
+      -configPaths=/transactor/config.yaml
+    volumes:
+      - ./e2e/blockchain/keystore:/keystore
+      - ./e2e/transactor:/transactor
+
+  redis:
+    image: redis:6.2.14
+    container_name: 'hermes_redis'
+    expose:
+      - 6379
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+
+  mongodb:
+    image: 'mongo:4.2.3'
+    container_name: 'hermes_mongo'
+    environment:
+      - MONGO_INITDB_ROOT_PASSWORD=root
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_DATABASE=admin
+      - MONGO_NON_ROOT_USERNAME=hermes
+      - MONGO_NON_ROOT_PASSWORD=hermes
+      - MONGO_REPLICA_SET_NAME=rs0
+    expose:
+      - 27017
+      - 27018
+      - 27019
+    volumes:
+      - ./e2e/mongo-init.e2e.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    command: ["mongod", "--replSet", "rs0"]
+    healthcheck:
+        test: 'test $$(echo "rs.initiate({_id: \"rs0\",version: 1,members: [{ _id: 0, host : \"mongodb:27017\" }]}).ok || rs.status().ok" | mongo -u root -p root --quiet) -eq 1'
+        interval: 5s
+        start_period: 5s
+
+  hermes:
+    image: mysteriumnetwork/hermes:2.3.17
+    environment:
+      PORT: 8889
+      LOG_LEVEL: trace
+    expose:
+      - 8889
+    depends_on:
+      - ganache
+      - redis
+      - mongodb
+      - ganache2
+      - transactor
+      - pilvytis-mock
+    command: >
+      -identityPassphrase ""
+      -Chain1Myst 0xaa9c4e723609cb913430143fbc86d3cbe7adca21
+      -Chain1RPCEndpoint http://ganache:8545
+      -transactorBaseUri "http://transactor:8888/api/v1/"
+      -Chain1ChainID 5
+      -Chain1chImplementation 0x599d43715df3070f83355d9d90ae62c159e62a75
+      -Chain1Registry 0x427c2bad22335710aec5e477f3e3adcd313a9bcb
+      -Chain1HermesAddress 0x241f6e1d0bb17f45767dc60a6bd3d21cdb543a0c
+      -Chain2Myst 0xaa9c4e723609cb913430143fbc86d3cbe7adca21
+      -Chain2RPCEndpoint ws://ganache2:8545
+      -Chain2ChainID 80001
+      -Chain2chImplementation 0x599d43715df3070f83355d9d90ae62c159e62a75
+      -Chain2Registry 0x427c2bad22335710aec5e477f3e3adcd313a9bcb
+      -Chain2HermesAddress 0x241f6e1d0bb17f45767dc60a6bd3d21cdb543a0c
+      -operator 0x354bd098b4ef8c9e70b7f21be2d455df559705d7
+      -keystoreDir /keystore
+      -bcDataRefreshInterval 1ns
+      -MongoUser hermes
+      -MongoPass hermes
+      -MongoReplSet rs0
+      -MongoHost "mongodb:27017"
+      -MongoDatabase hermes
+      -MongoReplSet ""
+      -redisAddress "redis:6379"
+      -bindAddr="0.0.0.0:8889"
+      -pilvytisBaseURL http://pilvytis-mock:8080
+    volumes:
+      - ./e2e/blockchain/keystore:/keystore
+
+  pilvytis-mock:
+    image: wiremock/wiremock:2.32.0
+    expose:
+      - 8080
+    volumes:
+      - ./e2e/pilvytis:/home/wiremock
+
+  hermes2:
+    image: mysteriumnetwork/hermes:3.3.15
+    environment:
+      LOG_LEVEL: trace
+    expose:
+      - 8889
+    depends_on:
+      - ganache
+      - ganache2
+      - redis
+      - transactor
+    command: >
+      -configPaths=/hermes/config.yaml
+    volumes:
+      - ./e2e/blockchain/keystore:/keystore
+      - ./e2e/hermes:/hermes
+
+  myst-provider:
+    build:
+      context: .
+      dockerfile: ./bin/docker/alpine-prebuilt/Dockerfile
+    depends_on:
+      - broker
+      - discovery
+      - ipify
+      - transactor
+      - hermes
+      - hermes2
+      - morqa
+      - trust
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    expose:
+      - 1194
+      - 4050
+    volumes:
+      - ./e2e/myst-provider/keystore:/var/lib/mysterium-node/keystore
+    command: >
+      --discovery.ping=1s
+      --discovery.fetch=1s
+      --chains.1.myst=0xaa9c4e723609cb913430143fbc86d3cbe7adca21
+      --chains.1.registry=0x427c2bad22335710aec5e477f3e3adcd313a9bcb
+      --chains.1.chainID=5
+      --chains.1.channelImplementation=0x599d43715df3070f83355d9d90ae62c159e62a75
+      --chains.1.hermes=0xd68defb97d0765741f8ecf179df2f9564e1466a3
+      --chains.1.knownHermeses=0xd68defb97d0765741f8ecf179df2f9564e1466a3
+      --chains.1.knownHermeses=0xfd63dc49c7163d82d6f0a4c23ff13216d702ce50
+      --chains.2.myst=0xaa9c4e723609cb913430143fbc86d3cbe7adca21
+      --chains.2.registry=0x427c2bad22335710aec5e477f3e3adcd313a9bcb
+      --chains.2.channelImplementation=0x599d43715df3070f83355d9d90ae62c159e62a75
+      --chains.2.hermes=0xd68defb97d0765741f8ecf179df2f9564e1466a3
+      --chains.2.knownHermeses=0xd68defb97d0765741f8ecf179df2f9564e1466a3
+      --chains.2.knownHermeses=0xfd63dc49c7163d82d6f0a4c23ff13216d702ce50
+      --chains.2.chainID=80001
+      --chain-id=80001
+      --ether.client.rpcl2=ws://ganache2:8545
+      --ether.client.rpcl1=http://ganache:8545
+      --ip-detector=http://ipify:3000/?format=json
+      --location.type=manual
+      --location.country=e2e-land
+      --firewall.protected.networks=""
+      --broker-address=broker
+      --tequilapi.address=0.0.0.0
+      --tequilapi.allowed-hostnames=.
+      --discovery.address=http://discovery:8080/api/v4
+      --transactor.address=http://transactor:8888/api/v1
+      --keystore.lightweight
+      --log-level=debug
+      --quality.address=http://morqa:8085/api/v3
+      --payments.provider.invoice-frequency=1s
+      --access-policy.address=http://trust:8080/api/v1/access-policies/
+      --access-policy.fetch=1s
+      --stun-servers=""
+      --local-service-discovery=true
+      --payments.hermes.settle.check-interval=1s
+      --payments.registry-transactor-poll.interval=1s
+      --observer.address=""
+      service
+      --agreed-terms-and-conditions
+      --identity=0xd1a23227bd5ad77f36ba62badcb78a410a1db6c5
+      --identity.passphrase=localprovider
+      --openvpn.port=3000
+      --active-services=openvpn,noop,wireguard
+
+  myst-consumer-noop:
+    build:
+      context: .
+      dockerfile: ./bin/docker/alpine-prebuilt/Dockerfile
+    volumes:
+      - ./e2e/myst-consumer/keystore/remember.json:/var/lib/mysterium-node/keystore/remember.json
+      - ./e2e/myst-consumer/keystore/UTC--2020-07-31T02-37-15.148642000Z--c4cb9a91b8498776f6f8a0d5a2a23beec9b3cef3:/var/lib/mysterium-node/keystore/UTC--2020-07-31T02-37-15.148642000Z--c4cb9a91b8498776f6f8a0d5a2a23beec9b3cef3
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=0
+    depends_on:
+      - broker
+      - discovery
+      - ipify
+      - transactor
+      - hermes
+      - myst-provider
+      - morqa
+    cap_add:
+      - NET_ADMIN
+    expose:
+      - 4050
+    command: >
+      --discovery.ping=1s
+      --discovery.fetch=1s
+      --discovery.type api --discovery.type broker
+      --chains.1.myst=0xaa9c4e723609cb913430143fbc86d3cbe7adca21
+      --chains.1.registry=0x427c2bad22335710aec5e477f3e3adcd313a9bcb
+      --chains.1.hermes=0xd68defb97d0765741f8ecf179df2f9564e1466a3
+      --chains.1.knownHermeses=0xd68defb97d0765741f8ecf179df2f9564e1466a3
+      --chains.1.knownHermeses=0xfd63dc49c7163d82d6f0a4c23ff13216d702ce50
+      --transactor.address=http://transactor:8888/api/v1
+      --chains.1.channelImplementation=0x599d43715df3070f83355d9d90ae62c159e62a75
+      --chains.2.myst=0xaa9c4e723609cb913430143fbc86d3cbe7adca21
+      --chains.2.registry=0x427c2bad22335710aec5e477f3e3adcd313a9bcb
+      --chains.2.channelImplementation=0x599d43715df3070f83355d9d90ae62c159e62a75
+      --chains.2.hermes=0xd68defb97d0765741f8ecf179df2f9564e1466a3
+      --chains.2.knownHermeses=0xd68defb97d0765741f8ecf179df2f9564e1466a3
+      --chains.2.knownHermeses=0xfd63dc49c7163d82d6f0a4c23ff13216d702ce50
+      --chains.2.chainID=80001
+      --chain-id=80001
+      --ip-detector=http://ipify:3000/?format=json
+      --location.type=manual
+      --log-level=debug
+      --broker-address=broker
+      --tequilapi.address=0.0.0.0
+      --tequilapi.allowed-hostnames=.
+      --discovery.address=http://discovery:8080/api/v4
+      --ether.client.rpcl2=ws://ganache2:8545
+      --ether.client.rpcl1=http://ganache:8545
+      --keystore.lightweight
+      --firewall.killSwitch.always
+      --quality.address=http://morqa:8085/api/v3
+      --stun-servers=""
+      --local-service-discovery=true
+      --payments.registry-transactor-poll.interval=1s
+      --port-check-servers="echo:4589"
+      --observer.address=""
+      daemon
+
+  myst-consumer-hermes2:
+    build:
+      context: .
+      dockerfile: ./bin/docker/alpine-prebuilt/Dockerfile
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=0
+    depends_on:
+      - broker
+      - discovery
+      - ipify
+      - transactor
+      - hermes2
+      - myst-provider
+      - morqa
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    command: >
+      --discovery.ping=1s
+      --discovery.fetch=1s
+      --chains.1.myst=0xaa9c4e723609cb913430143fbc86d3cbe7adca21
+      --chains.1.registry=0x427c2bad22335710aec5e477f3e3adcd313a9bcb
+      --chains.1.hermes=0xfd63dc49c7163d82d6f0a4c23ff13216d702ce50
+      --chains.1.knownHermeses=0xd68defb97d0765741f8ecf179df2f9564e1466a3,0xfd63dc49c7163d82d6f0a4c23ff13216d702ce50
+      --transactor.address=http://transactor:8888/api/v1
+      --chains.1.channelImplementation=0x599d43715df3070f83355d9d90ae62c159e62a75
+      --chains.2.myst=0xaa9c4e723609cb913430143fbc86d3cbe7adca21
+      --chains.2.registry=0x427c2bad22335710aec5e477f3e3adcd313a9bcb
+      --chains.2.channelImplementation=0x599d43715df3070f83355d9d90ae62c159e62a75
+      --chains.2.hermes=0xfd63dc49c7163d82d6f0a4c23ff13216d702ce50
+      --chains.2.knownHermeses=0xd68defb97d0765741f8ecf179df2f9564e1466a3,0xfd63dc49c7163d82d6f0a4c23ff13216d702ce50
+      --chains.2.chainID=80001
+      --chain-id=80001
+      --ip-detector=http://ipify:3000/?format=json
+      --location.type=manual
+      --log-level=debug
+      --broker-address=broker
+      --tequilapi.address=0.0.0.0
+      --tequilapi.allowed-hostnames=.
+      --discovery.address=http://discovery:8080/api/v4
+      --ether.client.rpcl2=ws://ganache2:8545
+      --ether.client.rpcl1=http://ganache:8545
+      --keystore.lightweight
+      --firewall.killSwitch.always
+      --quality.address=http://morqa:8085/api/v3
+      --stun-servers=""
+      --local-service-discovery=true
+      --payments.registry-transactor-poll.interval=1s
+      --port-check-servers="echo:4589"
+      --observer.address=""
+      daemon
+
+  myst-consumer-openvpn:
+    build:
+      context: .
+      dockerfile: ./bin/docker/alpine-prebuilt/Dockerfile
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=0
+    depends_on:
+      - broker
+      - discovery
+      - ipify
+      - transactor
+      - hermes
+      - myst-provider
+      - morqa
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    command: >
+      --discovery.ping=1s
+      --discovery.fetch=1s
+      --chains.1.myst=0xaa9c4e723609cb913430143fbc86d3cbe7adca21
+      --chains.1.registry=0x427c2bad22335710aec5e477f3e3adcd313a9bcb
+      --chains.1.hermes=0xd68defb97d0765741f8ecf179df2f9564e1466a3
+      --chains.1.knownHermeses=0xd68defb97d0765741f8ecf179df2f9564e1466a3
+      --chains.1.knownHermeses=0xfd63dc49c7163d82d6f0a4c23ff13216d702ce50
+      --transactor.address=http://transactor:8888/api/v1
+      --chains.1.channelImplementation=0x599d43715df3070f83355d9d90ae62c159e62a75
+      --chains.2.myst=0xaa9c4e723609cb913430143fbc86d3cbe7adca21
+      --chains.2.registry=0x427c2bad22335710aec5e477f3e3adcd313a9bcb
+      --chains.2.channelImplementation=0x599d43715df3070f83355d9d90ae62c159e62a75
+      --chains.2.hermes=0xd68defb97d0765741f8ecf179df2f9564e1466a3
+      --chains.2.knownHermeses=0xd68defb97d0765741f8ecf179df2f9564e1466a3
+      --chains.2.knownHermeses=0xfd63dc49c7163d82d6f0a4c23ff13216d702ce50
+      --chains.2.chainID=80001
+      --chain-id=80001
+      --ip-detector=http://ipify:3000/?format=json
+      --location.type=manual
+      --log-level=debug
+      --broker-address=broker
+      --tequilapi.address=0.0.0.0
+      --tequilapi.allowed-hostnames=.
+      --discovery.address=http://discovery:8080/api/v4
+      --ether.client.rpcl2=ws://ganache2:8545
+      --ether.client.rpcl1=http://ganache:8545
+      --keystore.lightweight
+      --firewall.killSwitch.always
+      --quality.address=http://morqa:8085/api/v3
+      --stun-servers=""
+      --local-service-discovery=true
+      --payments.registry-transactor-poll.interval=1s
+      --port-check-servers="echo:4589"
+      --observer.address=""
+      daemon
+
+  myst-consumer-wireguard:
+    build:
+      context: .
+      dockerfile: ./bin/docker/alpine-prebuilt/Dockerfile
+    depends_on:
+      - broker
+      - discovery
+      - ipify
+      - transactor
+      - hermes
+      - myst-provider
+      - morqa
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=0
+    command: >
+      --discovery.ping=1s
+      --discovery.fetch=1s
+      --chains.1.myst=0xaa9c4e723609cb913430143fbc86d3cbe7adca21
+      --chains.1.registry=0x427c2bad22335710aec5e477f3e3adcd313a9bcb
+      --chains.1.hermes=0xd68defb97d0765741f8ecf179df2f9564e1466a3
+      --transactor.address=http://transactor:8888/api/v1
+      --chains.1.channelImplementation=0x599d43715df3070f83355d9d90ae62c159e62a75
+      --chains.1.knownHermeses=0xd68defb97d0765741f8ecf179df2f9564e1466a3
+      --chains.1.knownHermeses=0xfd63dc49c7163d82d6f0a4c23ff13216d702ce50
+      --chains.2.myst=0xaa9c4e723609cb913430143fbc86d3cbe7adca21
+      --chains.2.registry=0x427c2bad22335710aec5e477f3e3adcd313a9bcb
+      --chains.2.channelImplementation=0x599d43715df3070f83355d9d90ae62c159e62a75
+      --chains.2.hermes=0xd68defb97d0765741f8ecf179df2f9564e1466a3
+      --chains.2.knownHermeses=0xd68defb97d0765741f8ecf179df2f9564e1466a3
+      --chains.2.knownHermeses=0xfd63dc49c7163d82d6f0a4c23ff13216d702ce50
+      --chains.2.chainID=80001
+      --chain-id=80001
+      --ip-detector=http://ipify:3000/?format=json
+      --location.type=manual
+      --log-level=debug
+      --broker-address=broker
+      --tequilapi.address=0.0.0.0
+      --tequilapi.allowed-hostnames=.
+      --discovery.address=http://discovery:8080/api/v4
+      --ether.client.rpcl2=ws://ganache2:8545
+      --ether.client.rpcl1=http://ganache:8545
+      --keystore.lightweight
+      --firewall.killSwitch.always
+      --quality.address=http://morqa:8085/api/v3
+      --stun-servers=""
+      --local-service-discovery=true
+      --payments.registry-transactor-poll.interval=1s
+      --port-check-servers="echo:4589"
+      --observer.address=""
+      daemon
+
+  #go runner to run go programs inside localnet (usefull for contract deployment or e2e test running)
+  go-runner:
+    build:
+      context: .
+      dockerfile: ./e2e/gorunner/Dockerfile.precompiled
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ./e2e/blockchain/keystore:/node/keystore
+    working_dir: /node
