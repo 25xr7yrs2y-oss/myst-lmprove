@@ -161,8 +161,8 @@ export class ConnectionStore {
                     serviceType: proposal.serviceType,
                     connectOptions: {
                         dns: this.root.config.dnsOption,
-                        kill_switch: true,
-                        proxy_port: 4449,
+                        disableKillSwitch: true,
+                        proxyPort: 4449,
                     },
                 },
                 60_000,

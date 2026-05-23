@@ -5,7 +5,7 @@ This fork customizes the Windows desktop client to behave like a local proxy cli
 ## Behavior changes
 
 - The desktop app starts `myst` with `--proxymode`.
-- Connection requests set `kill_switch: true` to disable session traffic blocking and use local proxy port `4449`.
+- Connection requests set `disableKillSwitch: true` to disable session traffic blocking and use local proxy port `4449`.
 - Startup no longer installs or upgrades the elevated supervisor service.
 - The kill switch settings row is removed from the desktop UI and the config setter is a no-op.
 - Windows WFP firewall setup is bypassed in `custom-node/supervisor/daemon/wireguard/wginterface`.
