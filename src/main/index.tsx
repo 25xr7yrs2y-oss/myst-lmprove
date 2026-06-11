@@ -64,6 +64,8 @@ app.whenReady().then(() => {
 
 app.on("before-quit", async () => {
     appIsQuitting = true
+    tray?.destroy()
+    tray = null
     await localWebServer.stop()
     await mysteriumNode.stop()
 })

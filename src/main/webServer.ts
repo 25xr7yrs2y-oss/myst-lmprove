@@ -450,7 +450,7 @@ export class LocalWebServer {
 
         await this.tequilapi.identityUnlock(identity.id, "", 10_000).catch(() => undefined)
         await this.tequilapi.connectionCreate(
-            ({
+            {
                 consumerId: identity.id,
                 providerId,
                 serviceType,
@@ -459,7 +459,7 @@ export class LocalWebServer {
                     disableKillSwitch: true,
                     proxyPort: LOCAL_PROXY_PORT,
                 },
-            } as any),
+            } as any,
             60_000,
         )
     }
