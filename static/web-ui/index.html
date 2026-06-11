@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MysteriumDark Local Web UI</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #111827;
+      --muted: #5f6b7a;
+      --line: #d8dde6;
+      --strong: #0f766e;
+      --strong-dark: #0b5f59;
+      --danger: #b42318;
+      --warn: #a15c07;
+      --soft: #eef7f6;
+      --shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 14px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    header {
+      background: #0b1220;
+      color: #fff;
+      padding: 18px 24px;
+    }
+
+    header h1 {
+      margin: 0 0 6px;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    header p {
+      margin: 0;
+      color: #cbd5e1;
+    }
+
+    main {
+      width: min(1440px, 100%);
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    .status-bar {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .metric,
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .metric {
+      padding: 12px;
+      min-height: 82px;
+    }
+
+    .metric label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: 5px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 16px;
+      overflow-wrap: anywhere;
+    }
+
+    .metric small {
+      color: var(--muted);
+      display: block;
+      margin-top: 4px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 340px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .stack {
+      display: grid;
+      gap: 14px;
+    }
+
+    .panel h2 {
+      margin: 0;
+      padding: 14px 14px 8px;
+      font-size: 16px;
+    }
+
+    .panel .body {
+      padding: 0 14px 14px;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .field {
+      display: grid;
+      gap: 5px;
+      margin: 9px 0;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 9px 10px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+    }
+
+    textarea {
+      min-height: 82px;
+      resize: vertical;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      padding: 8px 11px;
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: var(--strong);
+      background: var(--strong);
+      color: #fff;
+    }
+
+    button.primary:hover { background: var(--strong-dark); }
+    button.danger { color: var(--danger); border-color: #efb5ae; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 4px 9px;
+      background: #edf2f7;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .pill.good { background: var(--soft); color: var(--strong-dark); }
+    .pill.bad { background: #fff1f0; color: var(--danger); }
+    .pill.warn { background: #fff7ed; color: var(--warn); }
+
+    .message {
+      margin: 0 0 14px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--muted);
+      min-height: 42px;
+    }
+
+    .message.error {
+      color: var(--danger);
+      border-color: #efb5ae;
+      background: #fff8f7;
+    }
+
+    .message.success {
+      color: var(--strong-dark);
+      border-color: #a7d9d4;
+      background: var(--soft);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      background: #f1f4f8;
+      color: #475467;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+    tr.selected td { background: #ecfdf9; }
+
+    .table-wrap {
+      overflow: auto;
+      max-height: 560px;
+      border-radius: 8px;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .muted { color: var(--muted); }
+
+    .log {
+      background: #101828;
+      color: #d1e7dd;
+      border-radius: 8px;
+      padding: 10px;
+      min-height: 170px;
+      max-height: 360px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+
+    .checkline {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin: 8px 0;
+    }
+
+    .checkline input {
+      width: auto;
+    }
+
+    @media (max-width: 980px) {
+      .status-bar,
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>MysteriumDark Local Web UI</h1>
+    <p>Local-first browser control surface for the proxy-only Myst client.</p>
+  </header>
+
+  <main>
+    <div id="message" class="message">Loading local status...</div>
+
+    <section class="status-bar" aria-label="Status summary">
+      <div class="metric">
+        <label>Web UI</label>
+        <strong id="web-url">127.0.0.1:44051</strong>
+        <small id="preview-note">Live localhost mode</small>
+      </div>
+      <div class="metric">
+        <label>Node</label>
+        <strong id="node-status">Checking</strong>
+        <small id="node-detail">Tequilapi 127.0.0.1:44050</small>
+      </div>
+      <div class="metric">
+        <label>Connection</label>
+        <strong id="connection-status">Unknown</strong>
+        <small id="connection-detail">Proxy port 127.0.0.1:4449</small>
+      </div>
+      <div class="metric">
+        <label>Identity</label>
+        <strong id="identity-status">Unknown</strong>
+        <small id="identity-detail">No identity loaded yet</small>
+      </div>
+    </section>
+
+    <section class="layout">
+      <div class="stack">
+        <section class="panel">
+          <h2>Node Controls</h2>
+          <div class="body">
+            <div class="row">
+              <button class="primary" id="start-node">Start node</button>
+              <button id="refresh">Refresh</button>
+              <button class="danger" id="stop-node">Stop node</button>
+            </div>
+            <p class="muted">The node is started in user mode with local proxy mode enabled and bound to loopback only.</p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Identity</h2>
+          <div class="body">
+            <p class="mono" id="identity-id">No identity</p>
+            <div class="row">
+              <button id="create-identity">Create identity</button>
+              <button id="refresh-balance">Refresh balance</button>
+              <button id="register-identity">Register</button>
+            </div>
+            <div class="field">
+              <label for="identity-passphrase">Passphrase</label>
+              <input id="identity-passphrase" type="password" autocomplete="current-password" placeholder="Usually blank for this client">
+            </div>
+            <div class="row">
+              <button id="unlock-identity">Unlock</button>
+              <button id="export-identity">Export JSON</button>
+            </div>
+            <div class="field">
+              <label for="import-file">Import identity JSON</label>
+              <input id="import-file" type="file" accept="application/json,.json">
+            </div>
+            <button id="import-identity">Import selected identity</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Settings</h2>
+          <div class="body">
+            <div class="field">
+              <label for="dns">DNS server</label>
+              <select id="dns">
+                <option value="provider">Provider</option>
+                <option value="system">System</option>
+                <option value="1.1.1.1">Cloudflare 1.1.1.1</option>
+              </select>
+            </div>
+            <label class="checkline">
+              <input id="nat-auto" type="checkbox">
+              Use automatic NAT compatibility filtering
+            </label>
+            <label class="checkline">
+              <input id="quick-enabled" type="checkbox">
+              Prefer quick connect on startup
+            </label>
+            <label class="checkline">
+              <input id="mark-onboarded" type="checkbox">
+              Mark onboarding as complete
+            </label>
+            <label class="checkline">
+              <input id="accept-terms" type="checkbox">
+              Mark terms as accepted for this desktop config
+            </label>
+            <button id="save-settings" class="primary">Save settings</button>
+          </div>
+        </section>
+      </div>
+
+      <div class="stack">
+        <section class="panel">
+          <h2>Connection</h2>
+          <div class="body">
+            <div class="row">
+              <button class="primary" id="quick-connect">Quick connect</button>
+              <button id="connect-selected">Connect selected</button>
+              <button class="danger" id="disconnect">Disconnect</button>
+            </div>
+            <p id="selected-proposal" class="muted">No provider selected.</p>
+            <p><span class="pill good">Proxy endpoint</span> <span class="mono">127.0.0.1:4449</span></p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Providers</h2>
+          <div class="body">
+            <div class="row">
+              <div class="field" style="flex: 1 1 170px;">
+                <label for="country-filter">Country</label>
+                <select id="country-filter"><option value="">All countries</option></select>
+              </div>
+              <div class="field" style="flex: 1 1 190px;">
+                <label for="provider-search">Provider search</label>
+                <input id="provider-search" placeholder="Provider id">
+              </div>
+              <div class="field" style="flex: 0 0 130px;">
+                <label for="quality-filter">Min quality</label>
+                <select id="quality-filter">
+                  <option value="">Any</option>
+                  <option value="1">Low</option>
+                  <option value="2">Medium</option>
+                  <option value="3">High</option>
+                </select>
+              </div>
+              <label class="checkline" style="margin-top: 24px;">
+                <input id="include-failed" type="checkbox">
+                Include failed
+              </label>
+              <button id="load-proposals" style="margin-top: 18px;">Load providers</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Provider</th>
+                    <th>Country</th>
+                    <th>IP type</th>
+                    <th>Price</th>
+                    <th>Quality</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="proposal-rows">
+                  <tr><td colspan="6" class="muted">No providers loaded yet.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Logs</h2>
+          <div class="body">
+            <div class="row">
+              <button id="refresh-logs">Refresh logs</button>
+            </div>
+            <pre id="logs" class="log">No logs loaded yet.</pre>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const previewMode = window.location.protocol === "file:" || new URLSearchParams(window.location.search).has("preview");
+    const state = {
+      status: null,
+      proposals: [],
+      selectedProviderId: "",
+      busy: false
+    };
+
+    const previewStatus = {
+      app: {
+        name: "MysteriumDark",
+        version: "0.0.0-snapshot",
+        webUiUrl: "http://127.0.0.1:44051/",
+        tequilapiUrl: "http://127.0.0.1:44050",
+        proxyHost: "127.0.0.1",
+        proxyPort: 4449,
+        termsVersion: "preview"
+      },
+      node: { up: true, health: { ok: true, data: { uptime: "preview" } } },
+      connection: { ok: true, data: { status: "NotConnected" } },
+      identity: {
+        ok: true,
+        data: {
+          current: {
+            id: "0x1234preview5678",
+            registrationStatus: "Registered",
+            balanceTokens: { human: "2.5000", ether: "2.5000" }
+          },
+          identities: [{ id: "0x1234preview5678" }]
+        }
+      },
+      config: {
+        ok: true,
+        data: {
+          desktop: {
+            dns: "provider",
+            "nat-compatibility": "auto",
+            "quick-connect": true,
+            onboarded: true
+          }
+        }
+      },
+      location: { ok: true, data: { ip: "203.0.113.24", country: "US", city: "Preview" } },
+      connectionLocation: { ok: false, error: "Not connected" },
+      nat: { ok: true, data: { type: "auto" } },
+      presets: { ok: true, data: [] }
+    };
+
+    const previewProposals = [
+      {
+        providerId: "0x9edf75f870d87d2d1a69f0d950a99984ae955ee0",
+        serviceType: "wireguard",
+        country: "US",
+        location: { country: "US", ipType: "residential" },
+        price: { perGib: 0.12 },
+        quality: { level: 3 }
+      },
+      {
+        providerId: "0x2edb-preview-provider-singapore",
+        serviceType: "wireguard",
+        country: "SG",
+        location: { country: "SG", ipType: "hosting" },
+        price: { perGib: 0.08 },
+        quality: { level: 2 }
+      },
+      {
+        providerId: "0x77aa-preview-provider-germany",
+        serviceType: "wireguard",
+        country: "DE",
+        location: { country: "DE", ipType: "residential" },
+        price: { perGib: 0.10 },
+        quality: { level: 3 }
+      }
+    ];
+
+    const $ = (id) => document.getElementById(id);
+
+    function setMessage(text, kind) {
+      const box = $("message");
+      box.textContent = text;
+      box.className = "message" + (kind ? " " + kind : "");
+    }
+
+    function labelValue(result, fallback) {
+      if (!result || !result.ok) return fallback;
+      return result.data;
+    }
+
+    function connectionStatus() {
+      return labelValue(state.status && state.status.connection, {})?.status || "Unknown";
+    }
+
+    function identity() {
+      return labelValue(state.status && state.status.identity, {})?.current;
+    }
+
+    function desktopConfig() {
+      return labelValue(state.status && state.status.config, { desktop: {} }).desktop || {};
+    }
+
+    function priceText(proposal) {
+      const price = proposal.price || {};
+      if (price.perGib != null) return String(price.perGib) + " MYST/GiB";
+      if (price.perHour != null) return String(price.perHour) + " MYST/hour";
+      return "n/a";
+    }
+
+    function qualityText(proposal) {
+      const quality = proposal.quality || {};
+      if (quality.level != null) return String(quality.level);
+      if (proposal.qualityLevel != null) return String(proposal.qualityLevel);
+      return "n/a";
+    }
+
+    async function api(path, options) {
+      if (previewMode) {
+        throw new Error("Preview mode only. Start the installed app to use live actions.");
+      }
+      const response = await fetch(path, Object.assign({
+        headers: { "Content-Type": "application/json" }
+      }, options || {}));
+      if (!response.ok) {
+        let message = response.statusText;
+        try {
+          message = (await response.json()).error || message;
+        } catch (_) {}
+        throw new Error(message);
+      }
+      return response.json();
+    }
+
+    async function runAction(label, fn) {
+      if (state.busy) return;
+      state.busy = true;
+      setButtonsDisabled(true);
+      setMessage(label + "...");
+      try {
+        await fn();
+        setMessage(label + " complete.", "success");
+      } catch (err) {
+        setMessage(err.message || String(err), "error");
+      } finally {
+        state.busy = false;
+        setButtonsDisabled(false);
+      }
+    }
+
+    function setButtonsDisabled(disabled) {
+      document.querySelectorAll("button").forEach((button) => {
+        button.disabled = disabled;
+      });
+    }
+
+    async function refreshStatus() {
+      if (previewMode) {
+        state.status = previewStatus;
+        renderStatus();
+        setMessage("Static preview mode. The layout is visible, but actions are disabled until the app serves this page.");
+        return;
+      }
+      state.status = await api("/api/status");
+      renderStatus();
+    }
+
+    async function loadProposals() {
+      if (previewMode) {
+        state.proposals = previewProposals;
+        renderProposals();
+        return;
+      }
+      const params = new URLSearchParams();
+      if ($("country-filter").value) params.set("country", $("country-filter").value);
+      if ($("provider-search").value.trim()) params.set("search", $("provider-search").value.trim());
+      if ($("quality-filter").value) params.set("quality", $("quality-filter").value);
+      if ($("include-failed").checked) params.set("includeFailed", "true");
+      const result = await api("/api/proposals?" + params.toString());
+      state.proposals = result.items || [];
+      renderProposals();
+    }
+
+    async function loadLogs() {
+      if (previewMode) {
+        $("logs").textContent = [
+          "Preview log line: web UI loaded.",
+          "Preview log line: node controls, identity controls, settings, provider list and logs are visible."
+        ].join("\\n");
+        return;
+      }
+      const logs = await api("/api/logs");
+      $("logs").textContent = (logs.events || []).concat(logs.file || []).slice(-220).join("\\n") || "No log lines found.";
+    }
+
+    function renderStatus() {
+      const app = state.status.app || {};
+      const nodeUp = state.status.node && state.status.node.up;
+      const conn = connectionStatus();
+      const id = identity();
+      const cfg = desktopConfig();
+
+      $("web-url").textContent = app.webUiUrl || "http://127.0.0.1:44051/";
+      $("preview-note").textContent = previewMode ? "Static file preview" : "Live localhost mode";
+      $("node-status").innerHTML = nodeUp ? '<span class="pill good">Running</span>' : '<span class="pill bad">Stopped</span>';
+      $("node-detail").textContent = app.tequilapiUrl || "Tequilapi 127.0.0.1:44050";
+      $("connection-status").innerHTML = conn === "Connected" || conn === "CONNECTED"
+        ? '<span class="pill good">Connected</span>'
+        : '<span class="pill warn">' + conn + '</span>';
+      $("connection-detail").textContent = "Proxy endpoint " + (app.proxyHost || "127.0.0.1") + ":" + (app.proxyPort || 4449);
+
+      if (id) {
+        $("identity-status").innerHTML = '<span class="pill good">' + (id.registrationStatus || "Identity") + '</span>';
+        $("identity-detail").textContent = id.balanceTokens ? "Balance " + (id.balanceTokens.human || id.balanceTokens.ether || "0") + " MYST" : "Balance unavailable";
+        $("identity-id").textContent = id.id;
+      } else {
+        $("identity-status").innerHTML = '<span class="pill bad">Missing</span>';
+        $("identity-detail").textContent = "Create or import an identity";
+        $("identity-id").textContent = "No identity";
+      }
+
+      $("dns").value = cfg.dns || "provider";
+      $("nat-auto").checked = cfg["nat-compatibility"] !== "off";
+      $("quick-enabled").checked = cfg["quick-connect"] !== false;
+      $("mark-onboarded").checked = cfg.onboarded === true;
+    }
+
+    function renderCountryOptions() {
+      const select = $("country-filter");
+      const current = select.value;
+      const countries = Array.from(new Set(state.proposals.map((proposal) => proposal.country || proposal.location?.country || "unknown"))).sort();
+      select.innerHTML = '<option value="">All countries</option>' + countries.map((country) => (
+        '<option value="' + country + '">' + country + '</option>'
+      )).join("");
+      if (countries.includes(current)) select.value = current;
+    }
+
+    function renderProposals() {
+      renderCountryOptions();
+      const tbody = $("proposal-rows");
+      if (!state.proposals.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="muted">No providers found. Start the node, then load providers.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = state.proposals.map((proposal) => {
+        const country = proposal.country || proposal.location?.country || "unknown";
+        const ipType = proposal.ipType || proposal.location?.ipType || "unknown";
+        const selected = state.selectedProviderId === proposal.providerId ? " class=\"selected\"" : "";
+        return '<tr' + selected + '>' +
+          '<td class="mono">' + proposal.providerId + '</td>' +
+          '<td>' + country + '</td>' +
+          '<td>' + ipType + '</td>' +
+          '<td>' + priceText(proposal) + '</td>' +
+          '<td>' + qualityText(proposal) + '</td>' +
+          '<td><button data-provider="' + proposal.providerId + '">Select</button></td>' +
+        '</tr>';
+      }).join("");
+      tbody.querySelectorAll("button[data-provider]").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.selectedProviderId = button.getAttribute("data-provider");
+          const proposal = state.proposals.find((item) => item.providerId === state.selectedProviderId);
+          $("selected-proposal").textContent = proposal
+            ? "Selected " + proposal.providerId + " in " + (proposal.country || proposal.location?.country || "unknown") + "."
+            : "No provider selected.";
+          renderProposals();
+        });
+      });
+    }
+
+    async function saveSettings() {
+      const desktop = {
+        dns: $("dns").value,
+        "nat-compatibility": $("nat-auto").checked ? "auto" : "off",
+        "quick-connect": $("quick-enabled").checked,
+        onboarded: $("mark-onboarded").checked
+      };
+      if ($("accept-terms").checked) {
+        desktop["terms-agreed"] = {
+          version: (state.status.app && state.status.app.termsVersion) || "web-ui",
+          at: new Date().toISOString()
+        };
+      }
+      await api("/api/config", { method: "POST", body: JSON.stringify({ desktop }) });
+      await refreshStatus();
+    }
+
+    async function exportIdentity() {
+      if (previewMode) throw new Error("Preview mode only. Start the app to export an identity.");
+      const response = await fetch("/api/identity/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ passphrase: $("identity-passphrase").value })
+      });
+      if (!response.ok) {
+        let message = response.statusText;
+        try { message = (await response.json()).error || message; } catch (_) {}
+        throw new Error(message);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = (identity()?.id || "myst-identity") + ".json";
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function importIdentity() {
+      const file = $("import-file").files[0];
+      if (!file) throw new Error("Choose a JSON identity file first.");
+      const content = await file.text();
+      await api("/api/identity/import", {
+        method: "POST",
+        body: JSON.stringify({
+          content,
+          passphrase: $("identity-passphrase").value
+        })
+      });
+      await refreshStatus();
+    }
+
+    function wireEvents() {
+      $("refresh").addEventListener("click", () => runAction("Refresh status", async () => { await refreshStatus(); await loadLogs(); }));
+      $("start-node").addEventListener("click", () => runAction("Start node", async () => { await api("/api/node/start", { method: "POST", body: "{}" }); await refreshStatus(); }));
+      $("stop-node").addEventListener("click", () => runAction("Stop node", async () => { await api("/api/node/stop", { method: "POST", body: "{}" }); await refreshStatus(); }));
+      $("create-identity").addEventListener("click", () => runAction("Create identity", async () => { await api("/api/identity/create", { method: "POST", body: "{}" }); await refreshStatus(); }));
+      $("unlock-identity").addEventListener("click", () => runAction("Unlock identity", async () => { await api("/api/identity/unlock", { method: "POST", body: JSON.stringify({ passphrase: $("identity-passphrase").value }) }); await refreshStatus(); }));
+      $("refresh-balance").addEventListener("click", () => runAction("Refresh balance", async () => { await api("/api/identity/refresh-balance", { method: "POST", body: "{}" }); await refreshStatus(); }));
+      $("register-identity").addEventListener("click", () => runAction("Register identity", async () => { await api("/api/identity/register", { method: "POST", body: "{}" }); await refreshStatus(); }));
+      $("export-identity").addEventListener("click", () => runAction("Export identity", exportIdentity));
+      $("import-identity").addEventListener("click", () => runAction("Import identity", importIdentity));
+      $("save-settings").addEventListener("click", () => runAction("Save settings", saveSettings));
+      $("load-proposals").addEventListener("click", () => runAction("Load providers", loadProposals));
+      $("refresh-logs").addEventListener("click", () => runAction("Refresh logs", loadLogs));
+      $("quick-connect").addEventListener("click", () => runAction("Quick connect", async () => { await api("/api/connect/quick", { method: "POST", body: JSON.stringify({ country: $("country-filter").value || undefined }) }); await refreshStatus(); }));
+      $("connect-selected").addEventListener("click", () => runAction("Connect selected", async () => {
+        if (!state.selectedProviderId) throw new Error("Select a provider first.");
+        const proposal = state.proposals.find((item) => item.providerId === state.selectedProviderId) || {};
+        await api("/api/connect", { method: "POST", body: JSON.stringify({ providerId: state.selectedProviderId, serviceType: proposal.serviceType || "wireguard", dns: $("dns").value }) });
+        await refreshStatus();
+      }));
+      $("disconnect").addEventListener("click", () => runAction("Disconnect", async () => { await api("/api/disconnect", { method: "POST", body: "{}" }); await refreshStatus(); }));
+    }
+
+    async function boot() {
+      wireEvents();
+      await refreshStatus().catch((err) => setMessage(err.message || String(err), "error"));
+      await loadProposals().catch((err) => setMessage(err.message || String(err), "error"));
+      await loadLogs().catch(() => {});
+      if (!previewMode) {
+        setInterval(refreshStatus, 5000);
+        setInterval(loadLogs, 8000);
+      }
+    }
+
+    boot().catch((err) => setMessage(err.message || String(err), "error"));
+  </script>
+</body>
+</html>

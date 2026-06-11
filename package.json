@@ -151,7 +151,7 @@
       "target": [
         "nsis"
       ],
-      "icon": "static/logo.icns"
+      "icon": "static/logo.ico"
     },
     "linux": {
       "target": [
@@ -194,6 +194,11 @@
       "perMachine": true,
       "allowElevation": true,
       "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "MysteriumDark",
+      "installerIcon": "static/logo.ico",
+      "uninstallerIcon": "static/logo.ico",
+      "installerHeaderIcon": "static/logo.ico",
       "include": "build/nsis/customize.nsi"
     },
     "afterPack": "ci/afterPack.js",

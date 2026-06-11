@@ -6,4 +6,5 @@
  */
 export const cliFlags = {
     NO_UPDATE: "no-update",
+    WEB_UI_PORT: "web-ui-port",
 }
