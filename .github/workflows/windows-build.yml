@@ -67,6 +67,8 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           yarn build
           yarn run electron-builder --win nsis --publish never
 

@@ -13,7 +13,7 @@ import * as path from "path"
 import { app } from "electron"
 import _ from "lodash"
 import * as termsPackageJson from "@mysteriumnetwork/terms/package.json"
-import { TequilapiClient, TequilapiClientFactory } from "mysterium-vpn-js"
+import { Identity, TequilapiClient, TequilapiClientFactory } from "mysterium-vpn-js"
 
 import * as packageJson from "../../package.json"
 import { parseError } from "../shared/errors/parseError"
@@ -434,7 +434,7 @@ export class LocalWebServer {
         return { identities, current }
     }
 
-    private async currentIdentity(): Promise<{ id: string; [key: string]: unknown }> {
+    private async currentIdentity(): Promise<Identity> {
         const ids = await this.tequilapi.identityList()
         if (ids.length < 1) {
             throw new Error("No identity exists yet")
