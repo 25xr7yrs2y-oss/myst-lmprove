@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     # If the commit is tagged with a version (e.g. "1.0.0") release the app after building
-    tags: ["*"]
+    tags: ["v*"]
 
 jobs:
   release:

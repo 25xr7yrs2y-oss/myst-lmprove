@@ -18,6 +18,8 @@
 package router
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -25,7 +27,62 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/mysteriumnetwork/node/config"
+	"github.com/mysteriumnetwork/node/router/network"
 )
+
+func TestNewManager_ProxyModeUsesNoopRouting(t *testing.T) {
+	originalConfig := config.Current
+	config.Current = config.NewConfig()
+	t.Cleanup(func() { config.Current = originalConfig })
+	config.Current.SetCLI(config.FlagProxyMode.Name, true)
+	config.Current.SetCLI(config.FlagUserMode.Name, true)
+
+	r := NewManager()
+	assert.True(t, r.routingDisabled)
+	assert.IsType(t, &network.RoutingTableNoop{}, r.routingTable)
+	assert.NoError(t, r.ExcludeIPContext(context.Background(), net.ParseIP("203.0.113.10")))
+	assert.Empty(t, r.rules)
+}
+
+func TestRouterInitialGatewayDiscoveryIsBoundedAndSpecific(t *testing.T) {
+	discoveryErr := errors.New("supervisor unavailable")
+	table := &mockRoutingTable{discoverErr: discoveryErr}
+	r := &manager{
+		stop:                   make(chan struct{}),
+		routingTable:           table,
+		gwDiscoveryAttempts:    3,
+		gwDiscoveryBackoffBase: time.Millisecond,
+	}
+
+	started := time.Now()
+	err := r.ExcludeIPContext(context.Background(), net.ParseIP("203.0.113.10"))
+	assert.ErrorIs(t, err, ErrGatewayDiscoveryFailed)
+	assert.ErrorIs(t, err, discoveryErr)
+	assert.Equal(t, 3, table.discoveryCalls())
+	assert.Less(t, time.Since(started), time.Second)
+	assert.Empty(t, table.rules)
+}
+
+func TestRouterInitialGatewayDiscoveryHonorsCancellation(t *testing.T) {
+	table := &mockRoutingTable{discoverErr: errors.New("supervisor unavailable")}
+	r := &manager{
+		stop:                   make(chan struct{}),
+		routingTable:           table,
+		gwDiscoveryAttempts:    10,
+		gwDiscoveryBackoffBase: time.Hour,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(10*time.Millisecond, cancel)
+
+	started := time.Now()
+	err := r.ExcludeIPContext(ctx, net.ParseIP("203.0.113.10"))
+	assert.ErrorIs(t, err, ErrGatewayDiscoveryFailed)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, 1, table.discoveryCalls())
+	assert.Less(t, time.Since(started), time.Second)
+}
 
 func Test_router_ExcludeIP(t *testing.T) {
 	tests := []struct {
@@ -158,8 +215,10 @@ func Test_router_ReplaceGW(t *testing.T) {
 }
 
 type mockRoutingTable struct {
-	rules map[string]int
-	gw    net.IP
+	rules       map[string]int
+	gw          net.IP
+	discoverErr error
+	discoveries int
 
 	mu sync.Mutex
 }
@@ -202,7 +261,14 @@ func (t *mockRoutingTable) DiscoverGateway() (net.IP, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	return t.gw, nil
+	t.discoveries++
+	return t.gw, t.discoverErr
+}
+
+func (t *mockRoutingTable) discoveryCalls() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.discoveries
 }
 
 func (t *mockRoutingTable) setGW(gw net.IP) {
