@@ -18,13 +18,13 @@
 package router
 
 import (
+	"context"
 	"net"
 	"net/url"
 	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"golang.org/x/net/context"
 
 	"github.com/mysteriumnetwork/node/requests/resolver"
 )
@@ -38,6 +38,7 @@ var (
 // Manager describes a routing tables management service.
 type Manager interface {
 	ExcludeIP(net.IP) error
+	ExcludeIPContext(context.Context, net.IP) error
 	RemoveExcludedIP(net.IP) error
 	Clean() error
 }
@@ -118,14 +119,19 @@ func RemoveExcludedURL(urls ...string) error {
 
 // ExcludeIP adds IP based exception to route traffic directly.
 func ExcludeIP(ip net.IP) error {
+	return ExcludeIPContext(context.Background(), ip)
+}
+
+// ExcludeIPContext adds an IP exception while honoring caller cancellation during route initialization.
+func ExcludeIPContext(ctx context.Context, ip net.IP) error {
 	ensureRouterStarted()
 
-	err := DefaultRouter.ExcludeIP(ip)
+	err := DefaultRouter.ExcludeIPContext(ctx, ip)
 	if err != nil {
 		log.Info().Err(err).Msgf("Excluding IP address from the routes: %s", ip)
 	}
 
-	return nil
+	return err
 }
 
 // Clean removes all previously added routing rules.

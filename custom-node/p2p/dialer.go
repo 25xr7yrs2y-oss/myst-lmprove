@@ -63,6 +63,7 @@ func NewDialer(broker brokerConnector, signer identity.SignerFactory, verifierFa
 		portPool:        portPool,
 		consumerPinger:  traversal.NewPinger(traversal.DefaultPingConfig(), eventbus.New()),
 		eventBus:        eventBus,
+		excludeIP:       router.ExcludeIPContext,
 	}
 }
 
@@ -75,6 +76,7 @@ type dialer struct {
 	verifierFactory identity.VerifierFactory
 	ipResolver      ip.Resolver
 	eventBus        eventbus.EventBus
+	excludeIP       func(context.Context, net.IP) error
 }
 
 // Dial exchanges p2p configuration via broker, performs NAT pinging if needed
@@ -111,10 +113,8 @@ func (m *dialer) Dial(ctx context.Context, consumerID, providerID identity.Ident
 		return nil, fmt.Errorf("peer using compatibility version lower than 2: %d", config.compatibility)
 	}
 
-	if serviceType != "openvpn" && serviceType != "quic_scraping" { // OpenVPN does this automatically, we don't need to perform it manually, QUIC don't need this.
-		if err := router.ExcludeIP(net.ParseIP(config.peerIP())); err != nil {
-			return nil, fmt.Errorf("failed to exclude peer IP from default routes: %w", err)
-		}
+	if err := m.excludePeerFromRoutes(ctx, serviceType, net.ParseIP(config.peerIP())); err != nil {
+		return nil, fmt.Errorf("failed to exclude peer IP from default routes: %w", err)
 	}
 
 	var quicServer *server.QuicServer
@@ -209,6 +209,14 @@ func (m *dialer) Dial(ctx context.Context, consumerID, providerID identity.Ident
 	config.tracer.EndStage(traceAck)
 
 	return channel, nil
+}
+
+func (m *dialer) excludePeerFromRoutes(ctx context.Context, serviceType string, peerIP net.IP) error {
+	// Proxy mode terminates in the userspace netstack and never creates a system tunnel.
+	if node_config.GetBool(node_config.FlagProxyMode) || serviceType == "openvpn" || serviceType == "quic_scraping" {
+		return nil
+	}
+	return m.excludeIP(ctx, peerIP)
 }
 
 type communicationChannel interface {

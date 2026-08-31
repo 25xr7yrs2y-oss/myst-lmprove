@@ -20,6 +20,7 @@
 package router
 
 import (
+	"context"
 	"net"
 )
 
@@ -31,6 +32,10 @@ func NewManager() *manager {
 }
 
 func (m *manager) ExcludeIP(ip net.IP) error {
+	return nil
+}
+
+func (m *manager) ExcludeIPContext(ctx context.Context, ip net.IP) error {
 	return nil
 }
 

@@ -4,6 +4,9 @@ on:
   push:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-windows-installer:
     runs-on: windows-latest
@@ -35,9 +38,63 @@ jobs:
           $env:GOOS = "windows"
           $env:GOARCH = "amd64"
           $env:CGO_ENABLED = "0"
+          $buildCommit = "${{ github.sha }}"
+          $buildBranch = "${{ github.ref_name }}"
+          $buildNumber = "github-${{ github.run_id }}-${{ github.run_attempt }}"
+          $buildVersion = "privacy-browser-backend-v1.0.6"
+          $ldflags = "-w -s " +
+            "-X 'github.com/mysteriumnetwork/node/metadata.BuildCommit=$buildCommit' " +
+            "-X 'github.com/mysteriumnetwork/node/metadata.BuildBranch=$buildBranch' " +
+            "-X 'github.com/mysteriumnetwork/node/metadata.BuildNumber=$buildNumber' " +
+            "-X 'github.com/mysteriumnetwork/node/metadata.Version=$buildVersion'"
           New-Item -ItemType Directory -Force -Path build/myst, build/myst_supervisor
-          go build -ldflags="-w -s" -o build/myst/myst.exe ./cmd/mysterium_node
-          go build -ldflags="-w -s" -o build/myst_supervisor/myst_supervisor.exe ./cmd/supervisor
+          go build -ldflags="$ldflags" -o build/myst/myst.exe ./cmd/mysterium_node
+          go build -ldflags="$ldflags" -o build/myst_supervisor/myst_supervisor.exe ./cmd/supervisor
+
+      - name: Test proxy routing isolation and bounded gateway discovery
+        shell: pwsh
+        working-directory: custom-node
+        run: go test ./router ./p2p ./metadata
+
+      - name: Verify backend build provenance
+        shell: pwsh
+        working-directory: custom-node
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          $versionOutput = (& .\build\myst\myst.exe --version 2>&1 | Out-String).Trim()
+          if (!$versionOutput.Contains("privacy-browser-backend-v1.0.6")) {
+            throw "Backend version output does not contain the release identifier."
+          }
+          if (!$versionOutput.Contains("${{ github.sha }}")) {
+            throw "Backend version output does not contain the source commit."
+          }
+          $binary = Get-Item .\build\myst\myst.exe
+          $sha256 = (Get-FileHash $binary.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          Copy-Item $binary.FullName .\build\myst-windows-x64.exe
+          $versionOutput | Set-Content .\build\myst-version.txt -Encoding UTF8
+          [PSCustomObject]@{
+            sourceRepository = "https://github.com/${{ github.repository }}"
+            sourceCommit = "${{ github.sha }}"
+            sourceRef = "${{ github.ref }}"
+            workflowRun = "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            workflowRunAttempt = "${{ github.run_attempt }}"
+            binary = "myst-windows-x64.exe"
+            size = $binary.Length
+            sha256 = $sha256
+            versionOutput = $versionOutput
+          } | ConvertTo-Json -Depth 3 | Set-Content .\build\backend-provenance.json -Encoding UTF8
+
+      - name: Upload traceable backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: myst-windows-x64-${{ github.sha }}
+          path: |
+            custom-node/build/myst-windows-x64.exe
+            custom-node/build/myst-version.txt
+            custom-node/build/backend-provenance.json
+          if-no-files-found: error
+          compression-level: 0
 
       - name: Install desktop dependencies
         shell: pwsh
@@ -81,3 +138,34 @@ jobs:
             dist/*.blockmap
             dist/latest*.yml
           if-no-files-found: error
+  publish-backend:
+    if: github.ref == 'refs/tags/privacy-browser-backend-v1.0.6'
+    needs: build-windows-installer
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact verified backend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: myst-windows-x64-${{ github.sha }}
+          path: backend-release
+      - name: Publish immutable Privacy Browser backend pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ github.ref_name }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release ${{ github.ref_name }} already exists; refusing to replace immutable assets." >&2
+            exit 1
+          fi
+          gh release create "${{ github.ref_name }}" \
+            backend-release/myst-windows-x64.exe \
+            backend-release/myst-version.txt \
+            backend-release/backend-provenance.json \
+            --repo "${{ github.repository }}" \
+            --verify-tag \
+            --title "Privacy Browser backend v1.0.6" \
+            --notes-file BACKEND_RELEASE_NOTES_1.0.6.md \
+            --prerelease
